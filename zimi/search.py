@@ -873,7 +873,11 @@ def extract_pdf_text(pdf_bytes, max_length=None):
     if not _srv.HAS_PYMUPDF:
         return "[PDF content — install PyMuPDF to extract text]"
     try:
-        import fitz
+        # Reuse the module server.py already imported (pymupdf when
+        # available, fitz fallback on older PyMuPDF) — re-importing fitz
+        # here would re-trigger its deprecation warning on stdout, which
+        # pollutes the stdio transport for MCP clients.
+        fitz = _srv.fitz
 
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         text = ""

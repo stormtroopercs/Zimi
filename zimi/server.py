@@ -78,7 +78,11 @@ from libzim.reader import Archive
 from libzim.suggestion import SuggestionSearcher
 
 try:
-    import fitz  # PyMuPDF — for reading PDFs embedded in ZIM files
+    try:
+        import pymupdf as fitz  # PyMuPDF >= 1.24.5 — top-level name, no deprecation warning on stdout
+
+    except ImportError:
+        import fitz  # fallback: older PyMuPDF (< 1.24.5) has no top-level pymupdf module
 
     HAS_PYMUPDF = True
 except ImportError:
