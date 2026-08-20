@@ -35,7 +35,10 @@ Claude Code config (Docker via SSH):
 
 import json
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:  # MCP SDK 2.x renamed FastMCP -> MCPServer
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 from zimi import server as zimi
 
