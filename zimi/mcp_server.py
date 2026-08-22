@@ -3,13 +3,18 @@
 Zimi MCP Server — Expose offline knowledge as MCP tools for AI agents.
 
 Provides search, read, suggest, list, and random tools over ZIM files
-via the Model Context Protocol (stdio transport).
+via the Model Context Protocol (stdio by default, or streamable HTTP).
 
 Usage:
-  python3 -m zimi.mcp_server
+  python3 -m zimi.mcp_server              # stdio (default, as before)
+  python3 -m zimi.mcp_server --http       # streamable HTTP on 0.0.0.0:8100/mcp
 
 Configuration:
   ZIM_DIR    Path to directory containing *.zim files (default: /zims)
+  ZIMI_MCP_TRANSPORT  "stdio" (default) or "http" (same as --http)
+  ZIMI_MCP_HOST       Bind address for HTTP transport (default: 0.0.0.0)
+  ZIMI_MCP_PORT       Bind port for HTTP transport (default: 8100)
+  ZIMI_MCP_PATH       MCP endpoint path for HTTP transport (default: /mcp)
 
 Claude Code config (local):
   {
@@ -542,4 +547,9 @@ def deep_search(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    # Single entry point, both transports. stdio by default (unchanged
+    # behaviour); --http / ZIMI_MCP_TRANSPORT=http serves streamable HTTP
+    # on ZIMI_MCP_HOST:ZIMI_MCP_PORT (see mcp_http.py).
+    from zimi.mcp_http import run_main
+
+    run_main(mcp)
