@@ -23,6 +23,10 @@ EXPOSE 8899
 EXPOSE 6881/tcp
 EXPOSE 6881/udp
 
+# MCP streamable-HTTP port — only used when the MCP server is run with
+# --http (default 8100). Map it in Docker to reach the MCP endpoint over a URL.
+EXPOSE 8100
+
 # start-period=10m: first cold start may build SQLite title indexes from scratch
 # for every ZIM (Wikipedia EN can take 5+ min on a fragile host). Without a long
 # enough grace period the orchestrator marks the container unhealthy and may
