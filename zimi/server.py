@@ -1719,6 +1719,25 @@ def main():
                 pass
         warm_indexes()
         start_background_services(args.port)
+        # Optional: also serve the MCP tools in-process over streamable HTTP
+        # when ZIMI_MCP_TRANSPORT=http — one container/process then runs the
+        # web server, the BitTorrent engine, and the MCP endpoint together
+        # (no second container). Fail-soft: any error just warns; the web
+        # server keeps running.
+        if os.environ.get("ZIMI_MCP_TRANSPORT", "stdio") == "http":
+            try:
+                from zimi import mcp_http as _mcp_http
+                from zimi import mcp_server as _mcp_server
+
+                _mcp_host = os.environ.get("ZIMI_MCP_HOST", "0.0.0.0")
+                _mcp_port = int(os.environ.get("ZIMI_MCP_PORT", "8100"))
+                _mcp_http.start_mcp_http_thread(_mcp_server.mcp, _mcp_host, _mcp_port)
+            except Exception as _mcp_err:
+                log.warning(
+                    "In-process MCP HTTP did not start "
+                    "(ZIMI_MCP_TRANSPORT=http): %s",
+                    _mcp_err,
+                )
         # Start auto-update thread if enabled
         global _auto_update_thread
         if _auto_update_enabled:

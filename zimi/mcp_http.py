@@ -86,62 +86,97 @@ def build_http_server(server, path: str, stateless: bool) -> None:
         pass
 
 
-def serve_streamable_http(server, host: str, port: int) -> None:
-    """Run `server` over streamable HTTP on host:port (blocking).
-
-    Builds the Starlette app (version-aware) and drives uvicorn so the same
-    code path works on MCP SDK 1.x and 2.x.
-
-    Prints a startup line, then a "ready" line once the port is verified
-    (mirrors the web server's `ZIM Reader API starting on port` / `READY
-    <port>` pair in server.py). The port is probe-bound here so the ready
-    line reports the real bound address and a port collision fails fast
-    instead of after the app is built.
-    """
-    import socket
-    import uvicorn
-
+def _resolve_path() -> str:
     path = os.environ.get("ZIMI_MCP_PATH", "/mcp")
     if not path.startswith("/"):
         path = "/" + path
     os.environ["ZIMI_MCP_PATH"] = path
-    stateless = _stateless_default()
+    return path
 
-    print(f"MCP HTTP API starting on port {port}", flush=True)
 
+def _build_app(server, host: str, path: str, stateless: bool):
+    """Build the Starlette app for streamable HTTP (version-aware)."""
     if _mcp_major() >= 2:
-        app = server.streamable_http_app(
+        return server.streamable_http_app(
             streamable_http_path=path,
             stateless_http=stateless,
             json_response=False,
             host=host,
         )
-    else:
-        # 1.x: streamable_http_app() reads `settings` (configured above).
-        app = server.streamable_http_app()
+    # 1.x: streamable_http_app() reads `settings` (set by build_http_server).
+    return server.streamable_http_app()
 
-    # Probe-bind the port (same "report the real bound address" technique as
-    # the web server in server.py): getaddrinfo resolves host (IPv4/IPv6/
-    # name), the bind fails fast if the port is busy, and getsockname gives
-    # the actual address. We close before uvicorn binds its own socket, so
-    # this only verifies availability — the tiny close→uvicorn-bind race is
-    # acceptable (same tradeoff the web server makes).
-    family, _, _, _, addr = socket.getaddrinfo(host, int(port), socket.AF_UNSPEC, socket.SOCK_STREAM)[0]
+
+def _probe_bind(host: str, port: int):
+    """Probe-bind the port and report the real bound address.
+
+    getaddrinfo resolves host (IPv4/IPv6/name), bind fails fast if the port
+    is busy, and getsockname gives the actual address. We close before
+    uvicorn binds its own socket, so this only verifies availability — the
+    tiny close→bind race is the same tradeoff the web server makes.
+    """
+    import socket
+
+    family, _, _, _, addr = socket.getaddrinfo(
+        host, int(port), socket.AF_UNSPEC, socket.SOCK_STREAM
+    )[0]
     sock = socket.socket(family, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         sock.bind(addr)
-        actual_host, actual_port = sock.getsockname()[:2]
+        return sock.getsockname()[:2]
     finally:
         sock.close()
-    print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_level=os.environ.get("ZIMI_MCP_LOG_LEVEL", "info").lower(),
-    )
+
+def _uvicorn_log_level() -> str:
+    return os.environ.get("ZIMI_MCP_LOG_LEVEL", "info").lower()
+
+
+def serve_streamable_http(server, host: str, port: int) -> None:
+    """Run `server` over streamable HTTP on host:port (blocking).
+
+    Builds the Starlette app (version-aware) and drives uvicorn so the same
+    code path works on MCP SDK 1.x and 2.x. Prints a startup line, then a
+    "ready" line once the port is verified (mirrors the web server's
+    `ZIM Reader API starting on port` / `READY <port>` pair in server.py).
+    """
+    import uvicorn
+
+    path = _resolve_path()
+    stateless = _stateless_default()
+    print(f"MCP HTTP API starting on port {port}", flush=True)
+    build_http_server(server, path, stateless)
+    app = _build_app(server, host, path, stateless)
+    actual_host, actual_port = _probe_bind(host, port)
+    print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
+    uvicorn.run(app, host=host, port=port, log_level=_uvicorn_log_level())
+
+
+def start_mcp_http_thread(server, host: str, port: int):
+    """Start streamable HTTP on a background (daemon) thread (non-blocking).
+
+    In-process counterpart to serve_streamable_http() for running the MCP
+    endpoint inside an already-running process (the web server): one process
+    then serves the web UI, the BitTorrent engine, and the MCP endpoint
+    together — no second container needed. Returns
+    (thread, actual_host, actual_port).
+    """
+    import threading
+    import uvicorn
+
+    path = _resolve_path()
+    stateless = _stateless_default()
+    print(f"MCP HTTP API starting on port {port}", flush=True)
+    build_http_server(server, path, stateless)
+    app = _build_app(server, host, path, stateless)
+    actual_host, actual_port = _probe_bind(host, port)
+    print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
+    config = uvicorn.Config(app, host=host, port=port, log_level=_uvicorn_log_level())
+    uv_server = uvicorn.Server(config)
+    thread = threading.Thread(target=uv_server.run, daemon=True, name="mcp-http")
+    thread.start()
+    return thread, actual_host, actual_port
 
 
 def run_main(server) -> None:
