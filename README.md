@@ -162,6 +162,7 @@ Most people set nothing: every setting below has a sensible default or lives in 
 | `ZIMI_MCP_HOST` | `0.0.0.0` | Bind address for HTTP transport |
 | `ZIMI_MCP_PORT` | `8100` | Bind port for HTTP transport |
 | `ZIMI_MCP_PATH` | `/mcp` | MCP endpoint path for HTTP transport |
+| `ZIMI_MCP_API_KEY` | _(empty)_ | Bearer key required on the MCP HTTP endpoint: clients must send `Authorization: Bearer <key>`. Empty (default) leaves the endpoint open |
 
 </details>
 
@@ -251,6 +252,12 @@ Connect any MCP client to the endpoint by URL:
   }
 }
 ```
+
+The endpoint is open by default. To require authentication, set
+`ZIMI_MCP_API_KEY=<key>` and have the client send
+`Authorization: Bearer <key>` — e.g. `"headers": {"Authorization": "Bearer <key>"}`
+in the config above (MCP clients also pick it up from the `WWW-Authenticate`
+response on a 401).
 
 Bind address, port, and path: `ZIMI_MCP_HOST` (default `0.0.0.0`), `ZIMI_MCP_PORT` (default `8100`), `ZIMI_MCP_PATH` (default `/mcp`).
 

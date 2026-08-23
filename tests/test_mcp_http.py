@@ -14,6 +14,7 @@ a behaviour is version-specific, the expected value is derived from the
 module's own `_mcp_major()` so the test stays self-consistent on either major.
 """
 
+import asyncio
 import os
 import sys
 import unittest
@@ -24,7 +25,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import zimi.mcp_http as mcp_http  # noqa: E402
 
-_SENTINEL_APP = object()
+class _SentinelApp:
+    """Identity-stable, callable ASGI app that answers 200.
+
+    A single instance is used everywhere so identity assertions
+    (`assertIs`) keep working, while the auth tests can actually invoke
+    the app (a plain `object()` is not callable).
+    """
+
+    async def __call__(self, scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+
+_SENTINEL_APP = _SentinelApp()
 
 
 class _FakeServer:
@@ -43,7 +57,8 @@ class _FakeServer:
 
 
 def _clean_env():
-    for var in ("ZIMI_MCP_TRANSPORT", "ZIMI_MCP_HOST", "ZIMI_MCP_PORT", "ZIMI_MCP_PATH"):
+    for var in ("ZIMI_MCP_TRANSPORT", "ZIMI_MCP_HOST", "ZIMI_MCP_PORT",
+                "ZIMI_MCP_PATH", "ZIMI_MCP_API_KEY"):
         os.environ.pop(var, None)
 
 
@@ -161,6 +176,99 @@ class TestServeStreamableHttp(unittest.TestCase):
                     mcp_http.serve_streamable_http(server, "127.0.0.1", 9945)
         finally:
             blocker.close()
+
+
+class TestBearerAuth(unittest.TestCase):
+    """`wrap_with_auth` gates the app on `Authorization: Bearer <key>`."""
+
+    async def _drive(self, app, headers=()) -> list:
+        sent: list = []
+
+        async def receive():
+            return {"type": "http.request"}
+
+        async def send(message):
+            sent.append(message)
+
+        scope = {
+            "type": "http",
+            "headers": [(k.lower(), v) for k, v in headers],
+        }
+        await app(scope, receive, send)
+        return sent
+
+    def test_no_key_passes_through_unchanged(self):
+        _clean_env()
+        # No key set -> wrap_with_auth must return the app untouched.
+        self.assertIs(mcp_http.wrap_with_auth(_SENTINEL_APP), _SENTINEL_APP)
+
+    def test_key_rejects_missing_and_wrong_bearer(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_API_KEY"] = "sekrit"
+        try:
+            app = mcp_http.wrap_with_auth(_SENTINEL_APP)
+            self.assertIsNot(app, _SENTINEL_APP)
+            # No header at all -> 401
+            sent = asyncio.run(self._drive(app))
+            self.assertEqual(sent[0]["status"], 401)
+            # Wrong bearer -> 401
+            sent = asyncio.run(self._drive(app, [(b"authorization", b"Bearer wrong")]))
+            self.assertEqual(sent[0]["status"], 401)
+        finally:
+            _clean_env()
+
+    def test_key_accepts_correct_bearer(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_API_KEY"] = "sekrit"
+        try:
+            app = mcp_http.wrap_with_auth(_SENTINEL_APP)
+            sent = asyncio.run(self._drive(app, [(b"authorization", b"Bearer sekrit")]))
+            self.assertEqual(sent[0]["status"], 200)
+        finally:
+            _clean_env()
+
+    def test_401_carries_www_authenticate(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_API_KEY"] = "sekrit"
+        try:
+            app = mcp_http.wrap_with_auth(_SENTINEL_APP)
+            sent = asyncio.run(self._drive(app))
+            headers = dict(sent[0]["headers"])
+            self.assertIn(b"www-authenticate", headers)
+            self.assertTrue(headers[b"www-authenticate"].startswith(b"Bearer"))
+        finally:
+            _clean_env()
+
+    def test_whitespace_only_key_means_no_auth(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_API_KEY"] = "   "
+        try:
+            self.assertIs(mcp_http.wrap_with_auth(_SENTINEL_APP), _SENTINEL_APP)
+        finally:
+            _clean_env()
+
+
+class TestBearerFromRequest(unittest.TestCase):
+    def _scope(self, value):
+        return {"headers": [(b"authorization", value)]}
+
+    def test_extracted_case_insensitively(self):
+        self.assertEqual(
+            mcp_http._bearer_from_request(self._scope(b"Bearer abc-def.123")),
+            "abc-def.123",
+        )
+        self.assertEqual(
+            mcp_http._bearer_from_request(self._scope(b"bearer abc")),
+            "abc",
+        )
+
+    def test_no_header_is_empty(self):
+        self.assertEqual(mcp_http._bearer_from_request({"headers": []}), "")
+
+    def test_non_bearer_scheme_is_empty(self):
+        self.assertEqual(
+            mcp_http._bearer_from_request(self._scope(b"Basic dXNlcjpwYXNz")), ""
+        )
 
 
 class TestBuildHttpServer(unittest.TestCase):

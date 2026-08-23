@@ -20,10 +20,13 @@ ENV ZIMI_MANAGE=1
 # server). stdio is the no-op default so the base image behaves unchanged; the
 # streamable-HTTP compose services (docker-compose.yml / .nas.yml) set
 # ZIMI_MCP_TRANSPORT=http to reach the MCP endpoint by URL on ZIMI_MCP_PORT.
+# ZIMI_MCP_API_KEY empty = endpoint open (default); set it to require
+# `Authorization: Bearer <key>` on every request.
 ENV ZIMI_MCP_TRANSPORT=stdio
 ENV ZIMI_MCP_HOST=0.0.0.0
 ENV ZIMI_MCP_PORT=8100
 ENV ZIMI_MCP_PATH=/mcp
+ENV ZIMI_MCP_API_KEY=
 EXPOSE 8899
 
 # BT inbound port — only used when ZIMI_TORRENT=1. Compose users can map it

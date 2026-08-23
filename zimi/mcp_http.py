@@ -38,6 +38,10 @@ Configuration (env vars / CLI):
   ZIMI_MCP_HOST       Bind address          (default: 0.0.0.0)
   ZIMI_MCP_PORT       Bind port             (default: 8100)
   ZIMI_MCP_PATH       MCP endpoint path     (default: /mcp)
+  ZIMI_MCP_API_KEY  Bearer key the client must send as
+                    `Authorization: Bearer <key>` (default: empty = no auth,
+                    endpoint open). Empty is the no-op default so existing
+                    deployments keep working unchanged.
 """
 
 import argparse
@@ -64,6 +68,79 @@ def _stateless_default() -> bool:
     # session. Correct default for a shared/reverse-proxied deployment — the
     # MCP initialize/list/call sequence works without a server-side session.
     return os.environ.get("ZIMI_MCP_STATELESS", "1") not in ("0", "false", "False")
+
+
+def _mcp_api_key() -> str:
+    """Bearer key required on the HTTP endpoint.
+
+    Empty string (the default) means no authentication — the endpoint is open,
+    matching historical behaviour. A non-empty key is compared in constant time
+    against the ``Authorization: Bearer <key>`` header on every request.
+    """
+    return os.environ.get("ZIMI_MCP_API_KEY", "").strip()
+
+
+def _bearer_from_request(scope) -> str:
+    """Extract the Bearer token from an ASGI ``scope``'s headers ("" if absent)."""
+    for key, value in scope.get("headers") or []:
+        if key.lower() == b"authorization":
+            try:
+                v = value.decode("latin-1").strip()
+            except (AttributeError, UnicodeError):
+                continue
+            # "bearer <token>" / "Bearer<token>" (token = anything up to a space)
+            if v.lower().startswith("bearer"):
+                rest = v[len("bearer"):].strip()
+                if rest:
+                    return rest.split(None, 1)[0]
+            return ""
+    return ""
+
+
+def wrap_with_auth(app):
+    """Return ``app`` wrapped in a Bearer-auth middleware, or ``app`` unchanged.
+
+    A thin ASGI wrapper (not a Starlette middleware) so it wraps whatever the
+    SDK returns — a Starlette/Starlite app in either case — and needs no
+    import. With no key set it returns the app as-is, so the common
+    no-auth path adds zero overhead. When a key is set, every request must
+    carry ``Authorization: Bearer <key>``; anything else gets ``401`` with
+    ``WWW-Authenticate: Bearer`` (MCP clients then present the key).
+    """
+    key = _mcp_api_key()
+    if not key:
+        return app
+    key_bytes = key.encode("latin-1")
+
+    async def authed(scope, receive, send):
+        if scope.get("type", "") not in ("http", "websocket"):
+            return await app(scope, receive, send)
+        if _constant_time_equal(_bearer_from_request(scope), key_bytes):
+            return await app(scope, receive, send)
+        await _send_401(receive, send)
+
+    return authed
+
+
+def _constant_time_equal(a: str, b: bytes) -> bool:
+    """Constant-time string-vs-bytes comparison (no early-exit on length)."""
+    import hmac
+
+    return hmac.compare_digest(a.encode("latin-1"), b)
+
+
+async def _send_401(receive, send) -> None:
+    body = b'{"error":"unauthorized"}'
+    await send({
+        "type": "http.response.start",
+        "status": 401,
+        "headers": [
+            (b"content-type", b"application/json"),
+            (b"www-authenticate", b'Bearer realm="mcp"'),
+            (b"content-length", str(len(body)).encode()),
+        ],
+    })
+    await send({"type": "http.response.body", "body": body})
 
 
 def build_http_server(server, path: str, stateless: bool) -> None:
@@ -147,8 +224,10 @@ def serve_streamable_http(server, host: str, port: int) -> None:
     stateless = _stateless_default()
     print(f"MCP HTTP API starting on port {port}", flush=True)
     build_http_server(server, path, stateless)
-    app = _build_app(server, host, path, stateless)
+    app = wrap_with_auth(_build_app(server, host, path, stateless))
     actual_host, actual_port = _probe_bind(host, port)
+    if _mcp_api_key():
+        print("MCP HTTP bearer auth enabled (ZIMI_MCP_API_KEY)", flush=True)
     print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
     uvicorn.run(app, host=host, port=port, log_level=_uvicorn_log_level())
 
@@ -169,8 +248,10 @@ def start_mcp_http_thread(server, host: str, port: int):
     stateless = _stateless_default()
     print(f"MCP HTTP API starting on port {port}", flush=True)
     build_http_server(server, path, stateless)
-    app = _build_app(server, host, path, stateless)
+    app = wrap_with_auth(_build_app(server, host, path, stateless))
     actual_host, actual_port = _probe_bind(host, port)
+    if _mcp_api_key():
+        print("MCP HTTP bearer auth enabled (ZIMI_MCP_API_KEY)", flush=True)
     print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
     config = uvicorn.Config(app, host=host, port=port, log_level=_uvicorn_log_level())
     uv_server = uvicorn.Server(config)
