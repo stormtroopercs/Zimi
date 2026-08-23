@@ -159,6 +159,9 @@ Most people set nothing: every setting below has a sensible default or lives in 
 | `ZIMI_RATE_LIMIT_TRUSTED` | `600` | Budget for logged-in clients (and private-network clients on passwordless instances). |
 | `ZIMI_API_TOKEN` | _(none)_ | Pin the API token instead of generating in the UI |
 | `ZIMI_HOT_ZIMS` | _(none)_ | Comma-separated ZIM names to pre-warm at startup |
+| `ZIMI_MCP_HOST` | `0.0.0.0` | Bind address for HTTP transport |
+| `ZIMI_MCP_PORT` | `8100` | Bind port for HTTP transport |
+| `ZIMI_MCP_PATH` | `/mcp` | MCP endpoint path for HTTP transport |
 
 </details>
 
