@@ -91,7 +91,14 @@ def serve_streamable_http(server, host: str, port: int) -> None:
 
     Builds the Starlette app (version-aware) and drives uvicorn so the same
     code path works on MCP SDK 1.x and 2.x.
+
+    Prints a startup line, then a "ready" line once the port is verified
+    (mirrors the web server's `ZIM Reader API starting on port` / `READY
+    <port>` pair in server.py). The port is probe-bound here so the ready
+    line reports the real bound address and a port collision fails fast
+    instead of after the app is built.
     """
+    import socket
     import uvicorn
 
     path = os.environ.get("ZIMI_MCP_PATH", "/mcp")
@@ -99,6 +106,8 @@ def serve_streamable_http(server, host: str, port: int) -> None:
         path = "/" + path
     os.environ["ZIMI_MCP_PATH"] = path
     stateless = _stateless_default()
+
+    print(f"MCP HTTP API starting on port {port}", flush=True)
 
     if _mcp_major() >= 2:
         app = server.streamable_http_app(
@@ -110,6 +119,22 @@ def serve_streamable_http(server, host: str, port: int) -> None:
     else:
         # 1.x: streamable_http_app() reads `settings` (configured above).
         app = server.streamable_http_app()
+
+    # Probe-bind the port (same "report the real bound address" technique as
+    # the web server in server.py): getaddrinfo resolves host (IPv4/IPv6/
+    # name), the bind fails fast if the port is busy, and getsockname gives
+    # the actual address. We close before uvicorn binds its own socket, so
+    # this only verifies availability — the tiny close→uvicorn-bind race is
+    # acceptable (same tradeoff the web server makes).
+    family, _, _, _, addr = socket.getaddrinfo(host, int(port), socket.AF_UNSPEC, socket.SOCK_STREAM)[0]
+    sock = socket.socket(family, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(addr)
+        actual_host, actual_port = sock.getsockname()[:2]
+    finally:
+        sock.close()
+    print(f"MCP HTTP endpoint served on {actual_host}:{actual_port}", flush=True)
 
     uvicorn.run(
         app,
@@ -162,5 +187,4 @@ def run_main(server) -> None:
     os.environ["ZIMI_MCP_PATH"] = path
     build_http_server(server, path, _stateless_default())
 
-    print(f"Zimi MCP streamable HTTP: http://{args.host}:{args.port}{path}", flush=True)
     serve_streamable_http(server, args.host, args.port)

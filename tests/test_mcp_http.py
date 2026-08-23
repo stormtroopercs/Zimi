@@ -136,6 +136,32 @@ class TestServeStreamableHttp(unittest.TestCase):
         finally:
             _clean_env()
 
+    def test_prints_starting_and_ready_lines(self):
+        import io
+
+        server = _FakeServer()
+        buf = io.StringIO()
+        with patch("uvicorn.run"), patch("sys.stdout", buf):
+            mcp_http.serve_streamable_http(server, "127.0.0.1", 9944)
+        out = buf.getvalue()
+        self.assertIn("MCP HTTP API starting on port 9944", out)
+        self.assertIn("MCP HTTP endpoint served on 127.0.0.1:9944", out)
+
+    def test_ready_line_fails_fast_when_port_busy(self):
+        import socket as _socket
+
+        blocker = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        blocker.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+        blocker.bind(("127.0.0.1", 9945))
+        blocker.listen(1)
+        try:
+            server = _FakeServer()
+            with patch("uvicorn.run"):
+                with self.assertRaises(OSError):
+                    mcp_http.serve_streamable_http(server, "127.0.0.1", 9945)
+        finally:
+            blocker.close()
+
 
 class TestBuildHttpServer(unittest.TestCase):
     """`build_http_server` configures 1.x settings; is a safe no-op on 2.x."""
