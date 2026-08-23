@@ -58,7 +58,7 @@ class _FakeServer:
 
 def _clean_env():
     for var in ("ZIMI_MCP_TRANSPORT", "ZIMI_MCP_HOST", "ZIMI_MCP_PORT",
-                "ZIMI_MCP_PATH", "ZIMI_MCP_API_KEY"):
+                "ZIMI_MCP_PATH", "ZIMI_MCP_API_KEY", "ZIMI_MCP_LOG_LEVEL"):
         os.environ.pop(var, None)
 
 
@@ -269,6 +269,56 @@ class TestBearerFromRequest(unittest.TestCase):
         self.assertEqual(
             mcp_http._bearer_from_request(self._scope(b"Basic dXNlcjpwYXNz")), ""
         )
+
+
+class TestLogLevel(unittest.TestCase):
+    """`ZIMI_MCP_LOG_LEVEL` gates the endpoint spam (default: warning)."""
+
+    def setUp(self):
+        import logging
+
+        self._logging = logging
+        # Restore prior levels so the test doesn't leak logging config.
+        self._prev = {name: logging.getLogger(name).level
+                      for name in ("mcp", "uvicorn")}
+
+    def tearDown(self):
+        for name, level in self._prev.items():
+            self._logging.getLogger(name).setLevel(level)
+
+    def test_default_level_is_warning(self):
+        _clean_env()
+        self.assertEqual(mcp_http._uvicorn_log_level(), "warning")
+
+    def test_apply_sets_mcp_and_uvicorn_loggers_to_warning_by_default(self):
+        _clean_env()
+        mcp_http._apply_log_level()
+        self.assertEqual(self._logging.getLogger("mcp").level,
+                         self._logging.WARNING)
+        self.assertEqual(self._logging.getLogger("uvicorn").level,
+                         self._logging.WARNING)
+
+    def test_apply_respects_env_var(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_LOG_LEVEL"] = "debug"
+        try:
+            mcp_http._apply_log_level()
+            self.assertEqual(self._logging.getLogger("mcp").level,
+                             self._logging.DEBUG)
+            self.assertEqual(self._logging.getLogger("uvicorn").level,
+                             self._logging.DEBUG)
+        finally:
+            _clean_env()
+
+    def test_apply_unknown_level_falls_back_to_warning(self):
+        _clean_env()
+        os.environ["ZIMI_MCP_LOG_LEVEL"] = "not-a-level"
+        try:
+            mcp_http._apply_log_level()
+            self.assertEqual(self._logging.getLogger("mcp").level,
+                             self._logging.WARNING)
+        finally:
+            _clean_env()
 
 
 class TestBuildHttpServer(unittest.TestCase):

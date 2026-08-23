@@ -162,7 +162,8 @@ Most people set nothing: every setting below has a sensible default or lives in 
 | `ZIMI_MCP_HOST` | `0.0.0.0` | Bind address for HTTP transport |
 | `ZIMI_MCP_PORT` | `8100` | Bind port for HTTP transport |
 | `ZIMI_MCP_PATH` | `/mcp` | MCP endpoint path for HTTP transport |
-| `ZIMI_MCP_API_KEY` | _(empty)_ | Bearer key required on the MCP HTTP endpoint: clients must send `Authorization: Bearer <key>`. Empty (default) leaves the endpoint open |
+| `ZIMI_MCP_LOG_LEVEL` | `warning` | Log level for the HTTP endpoint. `warning` (default) silences per-request noise; `debug`/`info` re-enable the uvicorn access log and MCP-SDK session churn (e.g. `Terminating session: None`, which is normal in stateless mode); `error` silences it all |
+| `ZIMI_MCP_API_KEY` | _(empty)_ | Bearer key required on the MCP HTTP endpoint: clients must send `Authorization: Bearer *** Empty (default) leaves the endpoint open |
 
 </details>
 

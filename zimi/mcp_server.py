@@ -15,6 +15,10 @@ Configuration:
   ZIMI_MCP_HOST       Bind address for HTTP transport (default: 0.0.0.0)
   ZIMI_MCP_PORT       Bind port for HTTP transport (default: 8100)
   ZIMI_MCP_PATH       MCP endpoint path for HTTP transport (default: /mcp)
+  ZIMI_MCP_LOG_LEVEL  Log level for the HTTP endpoint (default: warning);
+                      debug/info re-enable per-request noise (uvicorn access
+                      log + MCP-SDK "Terminating session" churn), error silences
+                      it all
 
 Claude Code config (local):
   {

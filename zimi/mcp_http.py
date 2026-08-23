@@ -38,6 +38,10 @@ Configuration (env vars / CLI):
   ZIMI_MCP_HOST       Bind address          (default: 0.0.0.0)
   ZIMI_MCP_PORT       Bind port             (default: 8100)
   ZIMI_MCP_PATH       MCP endpoint path     (default: /mcp)
+  ZIMI_MCP_LOG_LEVEL  Log level for the HTTP endpoint (default: warning)
+                    (debug/info show per-request lines — uvicorn access log,
+                    and MCP-SDK session churn like "Terminating session: None"
+                    which is normal in stateless mode; error silences it all).
   ZIMI_MCP_API_KEY  Bearer key the client must send as
                     `Authorization: Bearer <key>` (default: empty = no auth,
                     endpoint open). Empty is the no-op default so existing
@@ -207,7 +211,27 @@ def _probe_bind(host: str, port: int):
 
 
 def _uvicorn_log_level() -> str:
-    return os.environ.get("ZIMI_MCP_LOG_LEVEL", "info").lower()
+    # "warning" (not uvicorn's default "info") so per-request access lines —
+    # e.g. "HEAD /mcp 405" from client liveness probes — stay quiet unless
+    # explicitly asked for.
+    return os.environ.get("ZIMI_MCP_LOG_LEVEL", "warning").lower()
+
+
+def _apply_log_level() -> None:
+    """Set the log level for the HTTP endpoint's noisy loggers.
+
+    uvicorn's access log is covered by uvicorn.Config(log_level=...); this
+    handles the other spam source: the MCP SDK logs per-connection churn at
+    INFO (its session manager start/stop and "Terminating session: None" on
+    every request in stateless mode). In-process those lines bubble up to
+    the web server's root logger, so we pin the SDK's own logger:
+    default "warning" silences INFO; "debug"/"info" re-enable it.
+    """
+    import logging
+
+    level = getattr(logging, _uvicorn_log_level().upper(), logging.WARNING)
+    logging.getLogger("mcp").setLevel(level)
+    logging.getLogger("uvicorn").setLevel(level)
 
 
 def serve_streamable_http(server, host: str, port: int) -> None:
@@ -222,6 +246,7 @@ def serve_streamable_http(server, host: str, port: int) -> None:
 
     path = _resolve_path()
     stateless = _stateless_default()
+    _apply_log_level()
     print(f"MCP HTTP API starting on port {port}", flush=True)
     build_http_server(server, path, stateless)
     app = wrap_with_auth(_build_app(server, host, path, stateless))
@@ -246,6 +271,7 @@ def start_mcp_http_thread(server, host: str, port: int):
 
     path = _resolve_path()
     stateless = _stateless_default()
+    _apply_log_level()
     print(f"MCP HTTP API starting on port {port}", flush=True)
     build_http_server(server, path, stateless)
     app = wrap_with_auth(_build_app(server, host, path, stateless))
