@@ -230,11 +230,10 @@ For Docker on a remote host:
 
 ### MCP over streamable HTTP
 
-Run the server in HTTP mode instead of spawning it per-client:
+Set `ZIMI_MCP_TRANSPORT=http` on the web server and it serves the MCP endpoint in-process — one container runs the web UI, the BitTorrent engine, and the MCP endpoint together (no separate process or port mapping needed with `--network host`). A standalone process still works too:
 
 ```bash
 python3 -m zimi.mcp_server --http        # 0.0.0.0:8100/mcp
-# or: ZIMI_MCP_TRANSPORT=http ZIMI_MCP_PORT=8100 python3 -m zimi.mcp_server
 ```
 
 Connect any MCP client to the endpoint by URL:
@@ -249,7 +248,7 @@ Connect any MCP client to the endpoint by URL:
 }
 ```
 
-For Docker, port-publish `8100` (and keep `--network host` or map it). Bind address, port, and path: `ZIMI_MCP_HOST` (default `0.0.0.0`), `ZIMI_MCP_PORT` (default `8100`), `ZIMI_MCP_PATH` (default `/mcp`).
+Bind address, port, and path: `ZIMI_MCP_HOST` (default `0.0.0.0`), `ZIMI_MCP_PORT` (default `8100`), `ZIMI_MCP_PATH` (default `/mcp`).
 
 Tools: `search` (with `lang` filter), `read`, `get_chunks`, `suggest`, `list_sources`, `random`, `article_languages`, `read_with_links`, `deep_search`, `list_collections`, `manage_collection`, `manage_favorites`
 

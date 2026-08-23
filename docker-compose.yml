@@ -15,23 +15,4 @@ services:
       - ZIMI_DATA_DIR=/config
       - ZIMI_MANAGE=1
 
-  # MCP server — a separate process from the web server (same image, different
-  # entrypoint). Runs in streamable-HTTP mode so AI clients reach the tools by
-  # URL instead of spawning a subprocess. network_mode: host binds :8100
-  # directly on the host, so no port mapping is needed.
-  zimi-mcp:
-    build: .
-    container_name: zimi-mcp
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - ./zims:/zims
-      - ./zimi-config:/config
-    environment:
-      - ZIM_DIR=/zims
-      - ZIMI_DATA_DIR=/config
-      - ZIMI_MCP_TRANSPORT=http
-      - ZIMI_MCP_HOST=0.0.0.0
-      - ZIMI_MCP_PORT=8100
-      - ZIMI_MCP_PATH=/mcp
-    command: ["python3", "-m", "zimi.mcp_server"]
+
