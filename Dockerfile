@@ -16,6 +16,14 @@ USER zimi
 ENV ZIM_DIR=/zims
 ENV ZIMI_DATA_DIR=/config
 ENV ZIMI_MANAGE=1
+# MCP server transport defaults (only read by `zimi.mcp_server`, not the web
+# server). stdio is the no-op default so the base image behaves unchanged; the
+# streamable-HTTP compose services (docker-compose.yml / .nas.yml) set
+# ZIMI_MCP_TRANSPORT=http to reach the MCP endpoint by URL on ZIMI_MCP_PORT.
+ENV ZIMI_MCP_TRANSPORT=stdio
+ENV ZIMI_MCP_HOST=0.0.0.0
+ENV ZIMI_MCP_PORT=8100
+ENV ZIMI_MCP_PATH=/mcp
 EXPOSE 8899
 
 # BT inbound port — only used when ZIMI_TORRENT=1. Compose users can map it

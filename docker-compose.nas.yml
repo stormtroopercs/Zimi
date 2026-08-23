@@ -38,3 +38,28 @@ services:
     mem_limit: 4g
     labels:
       - com.centurylinklabs.watchtower.enable=false
+
+  # MCP server — a separate process from the reader (same image, different
+  # entrypoint) in streamable-HTTP mode. Mirrors the NAS-specific settings:
+  # user 1026, /volume1 bind mounts, host networking, low mem_limit.
+  zim-mcp:
+    build: .
+    container_name: zim-reader-mcp
+    restart: unless-stopped
+    user: "1026"
+    network_mode: host
+    volumes:
+      - /volume1/docker/kiwix:/zims
+      - /volume1/docker/kiwix/zimi-data:/data
+    environment:
+      - ZIM_DIR=/zims
+      - ZIMI_DATA_DIR=/data
+      - ZIMI_MANAGE=1
+      - ZIMI_MCP_TRANSPORT=http
+      - ZIMI_MCP_HOST=0.0.0.0
+      - ZIMI_MCP_PORT=8100
+      - ZIMI_MCP_PATH=/mcp
+    command: ["python3", "-m", "zimi.mcp_server"]
+    mem_limit: 4g
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
