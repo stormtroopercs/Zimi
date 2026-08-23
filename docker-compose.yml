@@ -14,6 +14,9 @@ services:
       - ZIM_DIR=/zims
       - ZIMI_DATA_DIR=/config
       - ZIMI_MANAGE=1
-      - ZIMI_MCP_TRANSPORT=http
+      - ZIMI_MCP_TRANSPORT=http  # "stdio" (default) or "http" (same as --http)
+      - ZIMI_MCP_HOST=0.0.0.0   # Bind address for HTTP transport (default: 0.0.0.0)
+      - ZIMI_MCP_PORT=8100      # Bind port for HTTP transport (default: 8100)
+      - ZIMI_MCP_PATH=/mcp      # MCP endpoint path for HTTP transport (default: /mcp)
 
 

@@ -34,7 +34,10 @@ services:
       - ZIMI_DATA_DIR=/data
       - ZIMI_MANAGE=1
       - ZIMI_BT=port=16881  # gluetun owns host 6881; on/off stays UI-controlled
-      - ZIMI_MCP_TRANSPORT=http
+      - ZIMI_MCP_TRANSPORT=http  # "stdio" (default) or "http" (same as --http)
+      - ZIMI_MCP_HOST=0.0.0.0   # Bind address for HTTP transport (default: 0.0.0.0)
+      - ZIMI_MCP_PORT=8100      # Bind port for HTTP transport (default: 8100)
+      - ZIMI_MCP_PATH=/mcp      # MCP endpoint path for HTTP transport (default: /mcp)
     # Low resource footprint — only loads ZIM indexes on query
     mem_limit: 4g
     labels:
