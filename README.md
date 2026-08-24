@@ -9,7 +9,14 @@
 [![PyPI](https://img.shields.io/pypi/v/zimi)](https://pypi.org/project/zimi/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-This fork is identical to the main repo, just with streamable-HTTP MCP server support — see [MCP over streamable HTTP](#mcp-over-streamable-http).
+This fork is based on [epheterson/Zimi](https://github.com/epheterson/Zimi). Differences from upstream:
+
+- **MCP over streamable HTTP** — the MCP server runs in-process inside the web server (`ZIMI_MCP_TRANSPORT=http`, default port 8100); no separate container/service. See [MCP over streamable HTTP](#mcp-over-streamable-http).
+- **MCP SDK 1.x and 2.x** — works with both (2.0 renamed `FastMCP` → `MCPServer`).
+- **Optional Bearer auth** on the HTTP endpoint via `ZIMI_MCP_API_KEY`.
+- **Endpoint log control** via `ZIMI_MCP_LOG_LEVEL` (defaults quiet).
+- **Startup/ready indicators** for the HTTP endpoint (mirrors the web server).
+- **MCP `read()` path fix** — `search`/`suggest`/`random`/`deep_search` show `zim` and `path` as separate fields, and `read()`/`chunk()` strip a leading `{zim}/` prefix so agent-copied paths resolve.
 
 A modern experience for your ZIM files.
 
