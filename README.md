@@ -16,7 +16,7 @@ This fork is based on [epheterson/Zimi](https://github.com/epheterson/Zimi). Dif
 - **Optional Bearer auth** on the HTTP endpoint via `ZIMI_MCP_API_KEY`.
 - **Endpoint log control** via `ZIMI_MCP_LOG_LEVEL` (defaults quiet).
 - **Startup/ready indicators for the MCP HTTP endpoint** (mirrors the web server).
-- **MCP `read()` path fix** — `search`/`suggest`/`random`/`deep_search` show `zim` and `path` as separate fields, and `read()`/`chunk()` strip a leading `{zim}/` prefix so agent-copied paths resolve. Pulled from [PR #54](https://github.com/epheterson/Zimi/pull/54) by [TwoRobotsinaTrenchcoat](https://github.com/TwoRobotsinaTrenchcoat).
+- **MCP `read()` path fix** — `search`/`suggest`/`random`/`deep_search` show `zim` and `path` as separate fields, and `read()`/`chunk()` strip a leading `{zim}/` prefix so agent-copied paths resolve. Pulled from [PR #54](https://github.com/epheterson/Zimi/pull/54).
 
 A modern experience for your ZIM files.
 
