@@ -12,7 +12,7 @@
 This fork is based on [epheterson/Zimi](https://github.com/epheterson/Zimi). Differences from upstream:
 
 - **MCP over streamable HTTP** — the MCP server runs in-process inside the web server (`ZIMI_MCP_TRANSPORT=http`, default port 8100); no separate container/service. See [MCP over streamable HTTP](#mcp-over-streamable-http).
-- **MCP SDK 2.x support (backwards compatible)** — handles the 2.0 rename `FastMCP` → `MCPServer`.
+- **MCP SDK 2.x support (backwards compatible)**
 - **Optional Bearer auth** on the HTTP endpoint via `ZIMI_MCP_API_KEY`.
 - **Endpoint log control** via `ZIMI_MCP_LOG_LEVEL` (defaults quiet).
 - **Startup/ready indicators for the MCP HTTP endpoint** (mirrors the web server).
